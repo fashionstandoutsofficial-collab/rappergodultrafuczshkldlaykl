@@ -1325,7 +1325,7 @@ function Library:RefreshKeybinds()
 	end
 end
 
-function (Library.UpdateKeybindList or Library.RefreshKeybinds)(Library)
+function Library:UpdateKeybindList()
 	return self:RefreshKeybinds()
 end
 
