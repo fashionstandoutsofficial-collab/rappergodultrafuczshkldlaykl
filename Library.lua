@@ -82,6 +82,12 @@ Library.AccentColor = Library.Theme.Accent
 Library.OutlineColor = Library.Theme.Outline
 Library.AccentColorDark = Color3.fromRGB(150, 105, 120)
 
+
+getgenv().Toggles = getgenv().Toggles or {}
+getgenv().Options = getgenv().Options or {}
+Toggles = getgenv().Toggles
+Options = getgenv().Options
+
 local function SyncLinoriaColors()
 	Library.FontColor = Library.Theme.Text
 	Library.MainColor = Library.Theme.Bg3
@@ -818,7 +824,376 @@ local function KeyFromValue(value)
 	if keyName == "" or keyName == "nil" or keyName == "None" or keyName == "Unbound" then
 		return nil
 	end
+	local mouseAliases = {
+		MB1 = "MouseButton1",
+		MB2 = "MouseButton2",
+		MB3 = "MouseButton3",
+		Mouse1 = "MouseButton1",
+		Mouse2 = "MouseButton2",
+		Mouse3 = "MouseButton3"
+	}
+	keyName = mouseAliases[keyName] or keyName
 	return Enum.KeyCode[keyName] or Enum.UserInputType[keyName]
+end
+
+
+local function LinoriaKeyName(value)
+	local key = KeyFromValue(value)
+	if not key then return "None" end
+	if key == Enum.UserInputType.MouseButton1 then return "MB1" end
+	if key == Enum.UserInputType.MouseButton2 then return "MB2" end
+	if key == Enum.UserInputType.MouseButton3 then return "MB3" end
+	return key.Name
+end
+
+local function LinoriaRegisterOption(flag, object)
+	if not flag then return object end
+	Options[flag] = object
+	return object
+end
+
+local function LinoriaRegisterToggle(flag, object)
+	if not flag then return object end
+	Toggles[flag] = object
+	return object
+end
+
+local function LinoriaWrapLabel(label, group)
+	if not label or label.__LinoriaWrapped then return label end
+	label.__LinoriaWrapped = true
+	function label:AddColorPicker(flag, info)
+		info = info or {}
+		local realFlag = tostring(flag or info.Flag or info.Title or "color")
+		local item = group:ColorPicker({
+			Name = info.Title or info.Text or realFlag,
+			Flag = realFlag,
+			Default = info.Default or Color3.fromRGB(255, 255, 255),
+			Callback = function(value)
+				local opt = Options[realFlag]
+				if opt then opt.Value = value end
+				if info.Callback then info.Callback(value) end
+			end
+		})
+		local opt = {
+			Value = item:Get(),
+			Type = "ColorPicker",
+			SetValueRGB = function(self, color)
+				item:Set(color)
+				self.Value = item:Get()
+			end,
+			SetValue = function(self, color)
+				item:Set(color)
+				self.Value = item:Get()
+			end,
+			OnChanged = function(self, fn)
+				self.Changed = fn
+				if fn then fn(self.Value) end
+				return self
+			end
+		}
+		LinoriaRegisterOption(realFlag, opt)
+		return label
+	end
+	label.AddColorpicker = label.AddColorPicker
+	function label:AddKeyPicker(flag, info)
+		info = info or {}
+		local realFlag = tostring(flag or info.Flag or info.Text or "keybind")
+		local keyItem
+		local opt = {
+			Value = LinoriaKeyName(info.Default),
+			Mode = info.Mode or "Toggle",
+			Type = "KeyPicker",
+			Toggled = false,
+			SetValue = function(self, data)
+				local keyValue = data
+				local modeValue = self.Mode
+				if type(data) == "table" then
+					keyValue = data[1] or data.Key or data.Value or keyValue
+					modeValue = data[2] or data.Mode or modeValue
+				end
+				if keyItem then
+					keyItem:Set(keyValue)
+					if modeValue and keyItem.SetMode then keyItem:SetMode(modeValue) end
+				end
+				self.Value = LinoriaKeyName(keyValue)
+				self.Mode = modeValue or self.Mode
+			end,
+			GetState = function(self)
+				if self.Mode == "Always" or self.Mode == "always" then return true end
+				return self.Toggled and true or false
+			end,
+			OnChanged = function(self, fn)
+				self.Changed = fn
+				if fn then fn(self.Value) end
+				return self
+			end,
+			OnClick = function(self, fn)
+				self.Clicked = fn
+				return self
+			end,
+			Update = function() end
+		}
+		keyItem = group:Keybind({
+			Name = info.Text or realFlag,
+			Flag = realFlag,
+			Default = info.Default,
+			Mode = info.Mode,
+			Callback = function(state)
+				opt.Toggled = state and true or false
+				if info.Callback then info.Callback(state) end
+				if info.OnClick then info.OnClick(state) end
+				if opt.Clicked then opt.Clicked(state) end
+			end
+		})
+		if info.Mode and keyItem.SetMode then keyItem:SetMode(info.Mode) end
+		if realFlag == "MenuKeybind" then
+			local k = KeyFromValue(info.Default)
+			if k then Library.MenuKey = k; Library.MenuKeybind = tostring(k) end
+		end
+		LinoriaRegisterOption(realFlag, opt)
+		return label
+	end
+	return label
+end
+
+local function LinoriaWrapToggle(toggle, group, flag, callback)
+	if not toggle then return toggle end
+	local wrapped = toggle
+	wrapped.Type = "Toggle"
+	wrapped.Value = toggle.Get and toggle:Get() or false
+	function wrapped:SetValue(value)
+		if toggle.Set then toggle:Set(value) end
+		self.Value = toggle.Get and toggle:Get() or (value and true or false)
+		if callback then callback(self.Value) end
+	end
+	wrapped.Set = wrapped.SetValue
+	function wrapped:OnChanged(fn)
+		self.Changed = fn
+		if fn then fn(self.Value) end
+		return self
+	end
+	function wrapped:AddColorPicker(colorFlag, info)
+		info = info or {}
+		local label = {Colorpicker = function(_, data) return group:ColorPicker(data) end}
+		LinoriaWrapLabel(label, group):AddColorPicker(colorFlag, info)
+		return self
+	end
+	function wrapped:AddKeyPicker(keyFlag, info)
+		info = info or {}
+		local label = {Keybind = function(_, data) return group:Keybind(data) end}
+		LinoriaWrapLabel(label, group):AddKeyPicker(keyFlag, info)
+		return self
+	end
+	LinoriaRegisterToggle(flag, wrapped)
+	return wrapped
+end
+
+local function LinoriaWrapGroupbox(group)
+	if not group or group.__LinoriaWrapped then return group end
+	group.__LinoriaWrapped = true
+
+	function group:AddDivider()
+		return self:Label("")
+	end
+
+	function group:AddBlank(size)
+		local l = self:Label("")
+		return l
+	end
+
+	function group:AddLabel(text, wrap)
+		return LinoriaWrapLabel(self:Label(tostring(text or "")), self)
+	end
+
+	function group:AddToggle(flag, info)
+		info = info or {}
+		local realFlag = tostring(flag or info.Flag or info.Text or "toggle")
+		local wrapper
+		local item = self:Toggle({
+			Name = info.Text or realFlag,
+			Flag = realFlag,
+			Default = info.Default or false,
+			Callback = function(value)
+				if wrapper then wrapper.Value = value end
+				if info.Callback then info.Callback(value) end
+				if wrapper and wrapper.Changed then wrapper.Changed(value) end
+			end
+		})
+		wrapper = LinoriaWrapToggle(item, self, realFlag, nil)
+		wrapper.Value = info.Default or false
+		return wrapper
+	end
+
+	function group:AddSlider(flag, info)
+		info = info or {}
+		local realFlag = tostring(flag or info.Flag or info.Text or "slider")
+		local suffix = info.Suffix or ""
+		local default = info.Default
+		local item = self:Slider({
+			Name = info.Text or realFlag,
+			Flag = realFlag,
+			Min = info.Min or 0,
+			Max = info.Max or 100,
+			Default = default or info.Min or 0,
+			Callback = function(value)
+				local opt = Options[realFlag]
+				if opt then opt.Value = value end
+				if info.Callback then info.Callback(value) end
+			end
+		})
+		local opt = {
+			Value = item:Get(),
+			Type = "Slider",
+			SetValue = function(self, value)
+				item:Set(value)
+				self.Value = item:Get()
+			end,
+			Set = function(self, value) self:SetValue(value) end,
+			OnChanged = function(self, fn)
+				self.Changed = fn
+				if fn then fn(self.Value) end
+				return self
+			end
+		}
+		LinoriaRegisterOption(realFlag, opt)
+		return opt
+	end
+
+	function group:AddDropdown(flag, info)
+		info = info or {}
+		local realFlag = tostring(flag or info.Flag or info.Text or "dropdown")
+		local values = info.Values or info.Items or {}
+		local default = info.Default
+		if type(default) == "number" then default = values[default] end
+		if default == nil and not info.AllowNull then default = values[1] end
+		local item = self:Dropdown({
+			Name = info.Text or realFlag,
+			Flag = realFlag,
+			Items = values,
+			Default = default,
+			Callback = function(value)
+				local opt = Options[realFlag]
+				if opt then opt.Value = value end
+				if info.Callback then info.Callback(value) end
+			end
+		})
+		local opt = {
+			Value = item:Get(),
+			Values = values,
+			Type = "Dropdown",
+			SetValue = function(self, value)
+				if type(value) == "number" then value = self.Values[value] end
+				item:Set(value)
+				self.Value = item:Get()
+			end,
+			Set = function(self, value) self:SetValue(value) end,
+			Refresh = function(self, newValues)
+				self.Values = newValues or {}
+			end,
+			OnChanged = function(self, fn)
+				self.Changed = fn
+				if fn then fn(self.Value) end
+				return self
+			end
+		}
+		LinoriaRegisterOption(realFlag, opt)
+		return opt
+	end
+
+	function group:AddInput(flag, info)
+		info = info or {}
+		local realFlag = tostring(flag or info.Flag or info.Text or "input")
+		local item = self:Textbox({
+			Name = info.Text or realFlag,
+			Flag = realFlag,
+			Default = info.Default or "",
+			Callback = function(value)
+				local opt = Options[realFlag]
+				if opt then opt.Value = value end
+				if info.Callback then info.Callback(value) end
+			end
+		})
+		local opt = {
+			Value = item:Get(),
+			Type = "Input",
+			SetValue = function(self, value)
+				item:Set(value)
+				self.Value = item:Get()
+			end,
+			Set = function(self, value) self:SetValue(value) end,
+			OnChanged = function(self, fn)
+				self.Changed = fn
+				if fn then fn(self.Value) end
+				return self
+			end
+		}
+		LinoriaRegisterOption(realFlag, opt)
+		return opt
+	end
+
+	function group:AddButton(first, second)
+		local text, func
+		if type(first) == "table" then
+			text = first.Text or first.Name or "Button"
+			func = first.Func or first.Callback or second
+		else
+			text = tostring(first or "Button")
+			func = second
+		end
+		local btn = self:Button({Name = text, Callback = func})
+		local wrapper = {Instance = btn}
+		function wrapper:AddButton(a, b)
+			local t, f
+			if type(a) == "table" then
+				t = a.Text or a.Name or "Button"
+				f = a.Func or a.Callback or b
+			else
+				t = tostring(a or "Button")
+				f = b
+			end
+			group:Button({Name = t, Callback = f})
+			return self
+		end
+		function wrapper:AddTooltip() return self end
+		return wrapper
+	end
+
+	return group
+end
+
+local function LinoriaWrapTab(tab)
+	if not tab or tab.__LinoriaWrapped then return tab end
+	tab.__LinoriaWrapped = true
+	function tab:AddLeftGroupbox(name)
+		return LinoriaWrapGroupbox(self:Section(name or "Groupbox", "left"))
+	end
+	function tab:AddRightGroupbox(name)
+		return LinoriaWrapGroupbox(self:Section(name or "Groupbox", "right"))
+	end
+	function tab:AddLeftTabbox(name)
+		return {AddTab = function(_, tabName) return self:AddLeftGroupbox(tabName or name or "Tab") end}
+	end
+	function tab:AddRightTabbox(name)
+		return {AddTab = function(_, tabName) return self:AddRightGroupbox(tabName or name or "Tab") end}
+	end
+	return tab
+end
+
+local function LinoriaCompatWrapWindow(window)
+	if not window or window.__LinoriaWrapped then return window end
+	window.__LinoriaWrapped = true
+	function window:AddTab(name)
+		return LinoriaWrapTab(self:Tab(tostring(name or "Tab")))
+	end
+	function window:AddLeftGroupbox(name)
+		local tab = self.ActiveTab and LinoriaWrapTab(self.ActiveTab) or self:AddTab("Main")
+		return tab:AddLeftGroupbox(name)
+	end
+	function window:AddRightGroupbox(name)
+		local tab = self.ActiveTab and LinoriaWrapTab(self.ActiveTab) or self:AddTab("Main")
+		return tab:AddRightGroupbox(name)
+	end
+	return window
 end
 
 function Library:RefreshKeybinds()
@@ -1361,6 +1736,8 @@ function Library:CreateWindow(options)
 
 	self.KeybindText = keybindText
 	self.KeybindBox = keybindBox
+	self.KeybindFrame = keybindBox
+	self.KeybindContainer = keybindInner
 	self.KeybindInner = keybindInner
 	self.KeybindRows = {}
 
@@ -2866,7 +3243,7 @@ function Library:CreateWindow(options)
 						Library.Flags[flag .. "_key"] = key
 						keyButtonLabel.Text = key.Name:lower()
 						keyButtonLabel.TextColor3 = Library.Theme.Text
-						if flag == "menu" then Library.MenuKey = key; Library.MenuKeybind = tostring(key) end
+						if flag == "menu" or flag == "MenuKeybind" then Library.MenuKey = key; Library.MenuKeybind = tostring(key) end
 						Library:RefreshKeybinds()
 					end
 				end
@@ -3194,6 +3571,9 @@ function Library:CreateWindow(options)
 		return Library:Notify(Data, Duration)
 	end
 
+	LinoriaCompatWrapWindow(window)
+	self.CurrentWindow = window
+	self.Gui = gui
 	return window
 end
 
@@ -3289,7 +3669,7 @@ end
 function Library:CreateSettingsPage(window, watermark, keybindList)
 	window = window or self.CurrentWindow
 	if not window then return nil end
-	wrapWindow(window)
+	LinoriaCompatWrapWindow(window)
 
 	local tab = window:AddTab("UI Settings")
 	local configBox = tab:AddLeftGroupbox("Config Manager")
