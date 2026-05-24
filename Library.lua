@@ -1325,8 +1325,10 @@ function Library:RefreshKeybinds()
 	end
 end
 
-function Library:UpdateKeybindList()
-	return self:RefreshKeybinds()
+Library.UpdateKeybindList = function(self)
+	if self and self.RefreshKeybinds then
+		return self:RefreshKeybinds()
+	end
 end
 
 function Library:CreateWindow(options)
