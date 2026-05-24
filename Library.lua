@@ -999,12 +999,21 @@ end
 local function LinoriaWrapToggle(toggle, group, flag, callback)
 	if not toggle then return toggle end
 	local wrapped = toggle
+	local originalSet = toggle.Set
+	local originalGet = toggle.Get
 	wrapped.Type = "Toggle"
-	wrapped.Value = toggle.Get and toggle:Get() or false
+	wrapped.Value = originalGet and originalGet(toggle) or false
 	function wrapped:SetValue(value)
-		if toggle.Set then toggle:Set(value) end
-		self.Value = toggle.Get and toggle:Get() or (value and true or false)
+		if originalSet then
+			originalSet(toggle, value)
+		else
+			self.Value = value and true or false
+		end
+		self.Value = originalGet and originalGet(toggle) or (value and true or false)
 		if callback then callback(self.Value) end
+		if self.Changed then self.Changed(self.Value) end
+		Library:UpdateKeybindList()
+		return self
 	end
 	wrapped.Set = wrapped.SetValue
 	function wrapped:OnChanged(fn)
