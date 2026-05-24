@@ -998,24 +998,40 @@ end
 
 local function LinoriaWrapToggle(toggle, group, flag, callback)
 	if not toggle then return toggle end
+	if toggle.__LinoriaWrapped then
+		return toggle
+	end
+
 	local wrapped = toggle
-	local originalSet = toggle.Set
-	local originalGet = toggle.Get
+	local originalSet = rawget(toggle, "Set")
+	local originalGet = rawget(toggle, "Get")
+	wrapped.__LinoriaWrapped = true
 	wrapped.Type = "Toggle"
 	wrapped.Value = originalGet and originalGet(toggle) or false
+
+	local updating = false
 	function wrapped:SetValue(value)
-		if originalSet then
+		if updating then
+			self.Value = value and true or false
+			return self
+		end
+
+		updating = true
+		if type(originalSet) == "function" and originalSet ~= wrapped.SetValue then
 			originalSet(toggle, value)
 		else
 			self.Value = value and true or false
+			Library.Flags[flag] = self.Value
 		end
 		self.Value = originalGet and originalGet(toggle) or (value and true or false)
+		updating = false
+
 		if callback then callback(self.Value) end
 		if self.Changed then self.Changed(self.Value) end
-		Library:UpdateKeybindList()
+		(Library.UpdateKeybindList or Library.RefreshKeybinds)(Library)
 		return self
 	end
-	wrapped.Set = wrapped.SetValue
+
 	function wrapped:OnChanged(fn)
 		self.Changed = fn
 		if fn then fn(self.Value) end
@@ -1307,6 +1323,10 @@ function Library:RefreshKeybinds()
 	if self.KeybindText then
 		self.KeybindText.Visible = false
 	end
+end
+
+function (Library.UpdateKeybindList or Library.RefreshKeybinds)(Library)
+	return self:RefreshKeybinds()
 end
 
 function Library:CreateWindow(options)
