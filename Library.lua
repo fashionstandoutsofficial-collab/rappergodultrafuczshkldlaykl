@@ -817,23 +817,47 @@ local function KeyFromValue(value)
 	if typeof(value) == "EnumItem" then
 		return value
 	end
+
 	local keyName = tostring(value or "")
 	keyName = keyName:gsub("Enum.KeyCode.", ""):gsub("KeyCode.", "")
 	keyName = keyName:gsub("Enum.UserInputType.", ""):gsub("UserInputType.", "")
 	keyName = keyName:gsub("%s+", "")
+
 	if keyName == "" or keyName == "nil" or keyName == "None" or keyName == "Unbound" then
 		return nil
 	end
+
 	local mouseAliases = {
-		MB1 = "MouseButton1",
-		MB2 = "MouseButton2",
-		MB3 = "MouseButton3",
-		Mouse1 = "MouseButton1",
-		Mouse2 = "MouseButton2",
-		Mouse3 = "MouseButton3"
+		MB1 = Enum.UserInputType.MouseButton1,
+		MB2 = Enum.UserInputType.MouseButton2,
+		MB3 = Enum.UserInputType.MouseButton3,
+		Mouse1 = Enum.UserInputType.MouseButton1,
+		Mouse2 = Enum.UserInputType.MouseButton2,
+		Mouse3 = Enum.UserInputType.MouseButton3,
+		MouseButton1 = Enum.UserInputType.MouseButton1,
+		MouseButton2 = Enum.UserInputType.MouseButton2,
+		MouseButton3 = Enum.UserInputType.MouseButton3
 	}
-	keyName = mouseAliases[keyName] or keyName
-	return Enum.KeyCode[keyName] or Enum.UserInputType[keyName]
+
+	if mouseAliases[keyName] then
+		return mouseAliases[keyName]
+	end
+
+	local okKey, keyCode = pcall(function()
+		return Enum.KeyCode[keyName]
+	end)
+	if okKey and keyCode then
+		return keyCode
+	end
+
+	local okInput, inputType = pcall(function()
+		return Enum.UserInputType[keyName]
+	end)
+	if okInput and inputType then
+		return inputType
+	end
+
+	return nil
 end
 
 
