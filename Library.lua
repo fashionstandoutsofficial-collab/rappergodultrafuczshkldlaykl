@@ -813,53 +813,69 @@ local function ColorFromHex(hex)
 	return Color3.fromRGB(r, g, b)
 end
 
+local KeyCodeLookup = {}
+local UserInputTypeLookup = {}
+
+for _, enumItem in ipairs(Enum.KeyCode:GetEnumItems()) do
+	KeyCodeLookup[enumItem.Name] = enumItem
+end
+
+for _, enumItem in ipairs(Enum.UserInputType:GetEnumItems()) do
+	UserInputTypeLookup[enumItem.Name] = enumItem
+end
+
+local MouseKeyAliases = {
+	MB1 = Enum.UserInputType.MouseButton1,
+	M1 = Enum.UserInputType.MouseButton1,
+	Mouse1 = Enum.UserInputType.MouseButton1,
+	MouseButton1 = Enum.UserInputType.MouseButton1,
+	MouseButtonOne = Enum.UserInputType.MouseButton1,
+
+	MB2 = Enum.UserInputType.MouseButton2,
+	M2 = Enum.UserInputType.MouseButton2,
+	Mouse2 = Enum.UserInputType.MouseButton2,
+	MouseButton2 = Enum.UserInputType.MouseButton2,
+	MouseButtonTwo = Enum.UserInputType.MouseButton2,
+
+	MB3 = Enum.UserInputType.MouseButton3,
+	M3 = Enum.UserInputType.MouseButton3,
+	Mouse3 = Enum.UserInputType.MouseButton3,
+	MouseButton3 = Enum.UserInputType.MouseButton3,
+	MouseButtonThree = Enum.UserInputType.MouseButton3,
+}
+
 local function KeyFromValue(value)
 	if typeof(value) == "EnumItem" then
-		return value
+		if value.EnumType == Enum.KeyCode or value.EnumType == Enum.UserInputType then
+			return value
+		end
+		return nil
 	end
 
 	local keyName = tostring(value or "")
-	keyName = keyName:gsub("Enum.KeyCode.", ""):gsub("KeyCode.", "")
-	keyName = keyName:gsub("Enum.UserInputType.", ""):gsub("UserInputType.", "")
+	keyName = keyName:gsub("Enum%.KeyCode%.", "")
+	keyName = keyName:gsub("KeyCode%.", "")
+	keyName = keyName:gsub("Enum%.UserInputType%.", "")
+	keyName = keyName:gsub("UserInputType%.", "")
 	keyName = keyName:gsub("%s+", "")
 
 	if keyName == "" or keyName == "nil" or keyName == "None" or keyName == "Unbound" then
 		return nil
 	end
 
-	local mouseAliases = {
-		MB1 = Enum.UserInputType.MouseButton1,
-		MB2 = Enum.UserInputType.MouseButton2,
-		MB3 = Enum.UserInputType.MouseButton3,
-		Mouse1 = Enum.UserInputType.MouseButton1,
-		Mouse2 = Enum.UserInputType.MouseButton2,
-		Mouse3 = Enum.UserInputType.MouseButton3,
-		MouseButton1 = Enum.UserInputType.MouseButton1,
-		MouseButton2 = Enum.UserInputType.MouseButton2,
-		MouseButton3 = Enum.UserInputType.MouseButton3
-	}
-
-	if mouseAliases[keyName] then
-		return mouseAliases[keyName]
+	local lowered = keyName:lower()
+	if lowered == "rightmouse" or lowered == "rightclick" or lowered == "mousebuttonright" then
+		return Enum.UserInputType.MouseButton2
+	elseif lowered == "leftmouse" or lowered == "leftclick" or lowered == "mousebuttonleft" then
+		return Enum.UserInputType.MouseButton1
+	elseif lowered == "middlemouse" or lowered == "middleclick" or lowered == "mousebuttonmiddle" then
+		return Enum.UserInputType.MouseButton3
 	end
 
-	local okKey, keyCode = pcall(function()
-		return Enum.KeyCode[keyName]
-	end)
-	if okKey and keyCode then
-		return keyCode
-	end
-
-	local okInput, inputType = pcall(function()
-		return Enum.UserInputType[keyName]
-	end)
-	if okInput and inputType then
-		return inputType
-	end
-
-	return nil
+	return MouseKeyAliases[keyName]
+		or KeyCodeLookup[keyName]
+		or UserInputTypeLookup[keyName]
 end
-
 
 local function LinoriaKeyName(value)
 	local key = KeyFromValue(value)
@@ -3218,7 +3234,7 @@ function Library:CreateWindow(options)
 					Parent = keyButton,
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 1, 0),
-					Text = key and key.Name:lower() or "none",
+					Text = key and LinoriaKeyName(key):lower() or "none",
 					Font = Enum.Font.Code,
 					TextSize = 10,
 					TextColor3 = key and Library.Theme.Text or Library.Theme.Faint,
@@ -3261,17 +3277,17 @@ function Library:CreateWindow(options)
 				local item = {}
 
 				function item:Set(newKey)
-					if typeof(newKey) == "EnumItem" then
-						key = newKey
+					local parsedKey = KeyFromValue(newKey)
+					if parsedKey then
+						key = parsedKey
 						bind.Key = key
 						Library.Flags[flag .. "_key"] = key
-						keyButtonLabel.Text = key.Name:lower()
+						keyButtonLabel.Text = LinoriaKeyName(key):lower()
 						keyButtonLabel.TextColor3 = Library.Theme.Text
 						if flag == "menu" or flag == "MenuKeybind" then Library.MenuKey = key; Library.MenuKeybind = tostring(key) end
 						Library:RefreshKeybinds()
 					end
 				end
-
 				function item:Get() return key end
 
 				function item:SetMode(newMode)
