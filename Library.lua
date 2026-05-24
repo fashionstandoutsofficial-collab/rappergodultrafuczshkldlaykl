@@ -2575,7 +2575,7 @@ function Library:CreateWindow(options)
 					BackgroundTransparency = 1,
 					Position = UDim2.fromOffset(6, 0),
 					Size = UDim2.new(0.45, -6, 1, 0),
-					Text = flag,
+					Text = text,
 					Font = Enum.Font.Code,
 					TextSize = 10,
 					TextColor3 = Library.Theme.Dim,
@@ -2836,7 +2836,7 @@ function Library:CreateWindow(options)
 					BackgroundTransparency = 1,
 					Position = UDim2.fromOffset(16, 0),
 					Size = UDim2.new(1, -(16 + swatchTotalWidth + 4), 1, 0),
-					Text = flag,
+					Text = text,
 					Font = Enum.Font.Code,
 					TextSize = 10,
 					TextColor3 = state and Library.Theme.Text or Library.Theme.Dim,
@@ -2982,7 +2982,7 @@ function Library:CreateWindow(options)
 					BackgroundTransparency = 1,
 					Position = UDim2.fromOffset(0, 0),
 					Size = UDim2.new(1, -40, 0, 12),
-					Text = flag,
+					Text = text,
 					Font = Enum.Font.Code,
 					TextSize = 10,
 					TextColor3 = Library.Theme.Dim,
@@ -3105,7 +3105,7 @@ function Library:CreateWindow(options)
 					BackgroundTransparency = 1,
 					Position = UDim2.fromOffset(6, 0),
 					Size = UDim2.new(1, -64, 1, 0),
-					Text = flag,
+					Text = text,
 					Font = Enum.Font.Code,
 					TextSize = 10,
 					TextColor3 = Library.Theme.Dim,
@@ -3668,6 +3668,19 @@ function Library:Notification(title, message, duration)
 		return self:Notify({Title = title, Text = message, Duration = duration})
 	end
 	return self:Notify(title, message)
+end
+
+function Library:SetWatermark(text)
+	self.WatermarkText = tostring(text or "")
+	if self.CurrentWindow and self.CurrentWindow.SetWatermark then
+		self.CurrentWindow:SetWatermark(true)
+	end
+end
+
+function Library:SetWatermarkVisibility(state)
+	if self.CurrentWindow and self.CurrentWindow.SetWatermark then
+		self.CurrentWindow:SetWatermark(state and true or false)
+	end
 end
 
 function Library:Watermark(text)
